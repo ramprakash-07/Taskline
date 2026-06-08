@@ -5,6 +5,7 @@ TaskLine API — FastAPI application entry point.
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.routing import APIRoute
 
 from app.config import get_settings
 from app.database import database
@@ -44,7 +45,7 @@ app.add_middleware(
 app.include_router(queue_router)
 
 
-@app.get("/", tags=["Root"])
+@app.api_route("/", methods=["GET", "HEAD"], tags=["Root"])
 async def root():
     """Root endpoint with API info."""
     return {
@@ -54,7 +55,7 @@ async def root():
     }
 
 
-@app.get("/health", tags=["Health"])
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["Health"])
 async def health_check():
     """Health check endpoint for Render."""
     return {"status": "healthy"}
