@@ -475,7 +475,7 @@ export default function QueueApp() {
             cursor:"pointer", fontSize:"13px", fontFamily:"'DM Sans',sans-serif",
             fontWeight:700, boxShadow:"0 4px 16px #ff3b3b30", transition:"all 0.2s ease",
           }}>
-            {showForm ? "✕ Cancel" : "+ Add Person"}
+            {showForm ? "✕ Cancel" : "+ Add Entity"}
           </button>
         </div>
       </div>
@@ -488,7 +488,7 @@ export default function QueueApp() {
           animation:"fadeIn 0.25s ease both", background:"#ffffff04",
         }}>
           {[
-            { label:"Name", key:"name", placeholder:"Person's name", w:"180px", type:"text" },
+            { label:"Name", key:"name", placeholder:"Entity's name", w:"180px", type:"text" },
             { label:"Task", key:"task", placeholder:"What needs to be done?", w:"280px", type:"text" },
           ].map(({ label, key, placeholder, w, type }) => (
             <div key={key} style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
