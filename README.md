@@ -207,7 +207,7 @@ Or manually create a **Web Service**:
 
 ---
 
-## Roadmap
+## Milestone -1
 
 ### ✅ Phase 1 — Frontend
 - [x] Visual horizontal queue
@@ -226,10 +226,15 @@ Or manually create a **Web Service**:
 - [x] Per-user isolated queues
 - [x] Persistent queue state across sessions
 
+## Milestone -2
+
 ### 💡 Phase 4 — Collaboration
 - [ ] Shareable queues with invite links
 - [ ] Real-time sync for team queues
 - [ ] 3D character avatars (Three.js + Mixamo)
+
+## Milestone -3
+- [ ] Idea in progress
 
 ---
 
