@@ -1,17 +1,28 @@
 /**
  * QueueApp — Main queue management page.
- * Refactored to use API backend + Clerk auth.
+ * Supports auth/guest, streak tracking, edit modal, cinematic completion.
  */
 
 import { useState, useRef } from "react";
-import { useUser, useClerk } from "@clerk/clerk-react";
+import { useUser, useClerk, useAuth } from "@clerk/clerk-react";
+import { useNavigate } from "react-router-dom";
 import PersonCard, { PRIORITIES, getDeadlineUrgency } from "./components/PersonCard";
 import CelebrationBurst from "./components/CelebrationBurst";
+import EditTaskModal from "./components/EditTaskModal";
+import GuestBanner from "./components/GuestBanner";
+import StreakRiskBanner from "./components/StreakRiskBanner";
+import ShareStreakCard from "./components/ShareStreakCard";
 import { useQueue } from "./hooks/useQueue";
+import { useStreak } from "./hooks/useStreak";
+import { useGuest } from "./contexts/GuestContext";
 
 export default function QueueApp() {
   const { user } = useUser();
   const { signOut } = useClerk();
+  const { isSignedIn } = useAuth();
+  const { guestId, isGuest } = useGuest();
+  const navigate = useNavigate();
+
   const {
     queue,
     loading,
@@ -19,10 +30,13 @@ export default function QueueApp() {
     addItem,
     removeItem,
     completeItem,
+    updateItem,
     reorderItems,
     sortByPriority,
     clearError,
-  } = useQueue();
+  } = useQueue(isGuest ? guestId : null);
+
+  const { streak, recordCompletion, isAtRisk } = useStreak();
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", task: "", priority: "NORMAL", deadline: "" });
@@ -30,6 +44,11 @@ export default function QueueApp() {
   const [sorted, setSorted] = useState(false);
   const [celebration, setCelebration] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [highlightedId, setHighlightedId] = useState(null);
+  const [completingId, setCompletingId] = useState(null);
+  const [bouncingId, setBouncingId] = useState(null);
+  const [streakCelebration, setStreakCelebration] = useState(null);
   const scrollRef = useRef(null);
 
   const addPerson = async () => {
@@ -72,12 +91,53 @@ export default function QueueApp() {
     removeItem(queue[idx].id);
   };
 
+  /** Cinematic completion flow */
   const complete = async (idx) => {
-    const name = await completeItem(queue[idx].id);
-    if (name) {
-      setCelebration(name);
-      setTimeout(() => setCelebration(null), 2200);
+    const item = queue[idx];
+    const isUpNext = idx === 0;
+
+    // Phase 1: Start card launch animation
+    setCompletingId(item.id);
+
+    // Phase 2: After card animation, trigger celebration
+    setTimeout(async () => {
+      const name = await completeItem(item.id);
+
+      // Record streak if it's the UP NEXT task (index 0)
+      let streakIncreased = false;
+      let newStreak = 0;
+      if (isUpNext && isSignedIn) {
+        streakIncreased = await recordCompletion();
+        newStreak = streak.current_streak + (streakIncreased ? 1 : 0);
+      }
+
+      setCompletingId(null);
+
+      if (name) {
+        setCelebration({ name, streakIncreased, newStreak });
+        setTimeout(() => setCelebration(null), 2000);
+      }
+
+      // Bounce-settle the new first card
+      if (queue.length > 1) {
+        const nextCard = queue[idx === 0 ? 1 : 0];
+        setBouncingId(nextCard.id);
+        setTimeout(() => setBouncingId(null), 600);
+      }
+    }, 700);
+  };
+
+  const handleEdit = (item) => {
+    setEditingItem(item);
+  };
+
+  const handleEditSave = async (data) => {
+    const result = await updateItem(editingItem.id, data);
+    if (result) {
+      setHighlightedId(editingItem.id);
+      setTimeout(() => setHighlightedId(null), 1500);
     }
+    setEditingItem(null);
   };
 
   const handleSort = async () => {
@@ -97,6 +157,8 @@ export default function QueueApp() {
     reorderItems(n);
     setDragIdx(null);
   };
+
+  const handleGuestSignUp = () => navigate("/sign-up");
 
   const totalTime = queue.length * 25;
 
@@ -144,8 +206,29 @@ export default function QueueApp() {
         overflow: "hidden",
       }}
     >
+      {/* Banners */}
+      {isGuest && <GuestBanner />}
+      {!isGuest && isAtRisk() && (
+        <StreakRiskBanner currentStreak={streak.current_streak} />
+      )}
+
       {/* Celebration overlay */}
-      {celebration && <CelebrationBurst name={celebration} />}
+      {celebration && (
+        <CelebrationBurst
+          name={celebration.name}
+          streakIncreased={celebration.streakIncreased}
+          newStreak={celebration.newStreak}
+        />
+      )}
+
+      {/* Edit Modal */}
+      {editingItem && (
+        <EditTaskModal
+          item={editingItem}
+          onSave={handleEditSave}
+          onCancel={() => setEditingItem(null)}
+        />
+      )}
 
       {/* Error toast */}
       {error && (
@@ -192,6 +275,7 @@ export default function QueueApp() {
         </div>
 
         <div style={{ display: "flex", gap: "24px", alignItems: "center" }}>
+          {/* Stats */}
           {[
             { val: queue.length, lbl: "IN QUEUE" },
             { val: `~${totalTime}m`, lbl: "EST. TIME" },
@@ -217,6 +301,35 @@ export default function QueueApp() {
               <div style={{ fontSize: "10px", color: "#ffffff40", letterSpacing: "1px" }}>{lbl}</div>
             </div>
           ))}
+
+          {/* Streak display (authenticated only) */}
+          {!isGuest && (
+            <>
+              <div style={{ width: "1px", height: "32px", background: "#ffffff10" }} />
+              <div style={{ textAlign: "center" }}>
+                <div
+                  style={{
+                    fontSize: "24px",
+                    fontWeight: 800,
+                    color: streak.current_streak > 0 ? "#FFD700" : "#ffffff30",
+                    fontFamily: "'DM Mono', monospace",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "4px",
+                  }}
+                >
+                  <span style={{ fontSize: "18px" }}>🔥</span>
+                  {streak.current_streak}
+                </div>
+                <div style={{ fontSize: "10px", color: "#ffffff40", letterSpacing: "1px" }}>STREAK</div>
+              </div>
+              <ShareStreakCard
+                currentStreak={streak.current_streak}
+                longestStreak={streak.longest_streak}
+              />
+            </>
+          )}
 
           <div style={{ width: "1px", height: "32px", background: "#ffffff10" }} />
 
@@ -258,58 +371,80 @@ export default function QueueApp() {
             {showForm ? "✕ Cancel" : "+ Add Person"}
           </button>
 
-          {/* User avatar + sign out */}
+          {/* User section */}
           <div style={{ width: "1px", height: "32px", background: "#ffffff10" }} />
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            {user?.imageUrl ? (
-              <img
-                src={user.imageUrl}
-                alt={user.fullName || "User"}
-                style={{
-                  width: "32px",
-                  height: "32px",
-                  borderRadius: "50%",
-                  border: "2px solid #ffffff18",
-                }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: "32px",
-                  height: "32px",
-                  borderRadius: "50%",
-                  background: "#a855f7",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "13px",
-                  fontWeight: 800,
-                  color: "#fff",
-                  fontFamily: "'DM Mono', monospace",
-                }}
-              >
-                {(user?.firstName || "U")[0]}
-              </div>
-            )}
+
+          {isGuest ? (
             <button
-              onClick={() => signOut()}
-              title="Sign out"
+              onClick={handleGuestSignUp}
               style={{
-                background: "#ffffff08",
-                border: "1px solid #ffffff14",
-                color: "#ffffff60",
-                borderRadius: "8px",
-                padding: "6px 12px",
+                background: "linear-gradient(135deg, #FFD700, #FFA500)",
+                border: "none",
+                color: "#000",
+                borderRadius: "10px",
+                padding: "8px 18px",
                 cursor: "pointer",
-                fontSize: "11px",
-                fontFamily: "'DM Mono', monospace",
-                fontWeight: 600,
+                fontSize: "13px",
+                fontFamily: "'DM Sans', sans-serif",
+                fontWeight: 700,
+                boxShadow: "0 2px 12px #FFD70030",
                 transition: "all 0.2s ease",
               }}
             >
-              Sign out
+              Sign Up
             </button>
-          </div>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              {user?.imageUrl ? (
+                <img
+                  src={user.imageUrl}
+                  alt={user.fullName || "User"}
+                  style={{
+                    width: "32px",
+                    height: "32px",
+                    borderRadius: "50%",
+                    border: "2px solid #ffffff18",
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: "32px",
+                    height: "32px",
+                    borderRadius: "50%",
+                    background: "#a855f7",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "13px",
+                    fontWeight: 800,
+                    color: "#fff",
+                    fontFamily: "'DM Mono', monospace",
+                  }}
+                >
+                  {(user?.firstName || "U")[0]}
+                </div>
+              )}
+              <button
+                onClick={() => signOut()}
+                title="Sign out"
+                style={{
+                  background: "#ffffff08",
+                  border: "1px solid #ffffff14",
+                  color: "#ffffff60",
+                  borderRadius: "8px",
+                  padding: "6px 12px",
+                  cursor: "pointer",
+                  fontSize: "11px",
+                  fontFamily: "'DM Mono', monospace",
+                  fontWeight: 600,
+                  transition: "all 0.2s ease",
+                }}
+              >
+                Sign out
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -534,7 +669,11 @@ export default function QueueApp() {
                   onMoveLast={() => moveLast(idx)}
                   onDelete={() => remove(idx)}
                   onComplete={() => complete(idx)}
+                  onEdit={() => handleEdit(person)}
                   isDragging={dragIdx === idx}
+                  isHighlighted={highlightedId === person.id}
+                  isCompleting={completingId === person.id}
+                  isBouncing={bouncingId === person.id}
                   onDragStart={() => handleDragStart(idx)}
                   onDragEnd={handleDragEnd}
                   onDragOver={handleDragOver}
@@ -592,7 +731,7 @@ export default function QueueApp() {
                   fontFamily: "'DM Mono', monospace",
                 }}
               >
-                🏁 CLICK RIBBON TO COMPLETE · DRAG TO REORDER
+                🏁 CLICK RIBBON TO COMPLETE · ✏ EDIT · DRAG TO REORDER
               </div>
             </div>
           </>

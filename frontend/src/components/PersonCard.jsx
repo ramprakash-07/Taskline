@@ -136,7 +136,11 @@ export default function PersonCard({
   onMoveLast,
   onDelete,
   onComplete,
+  onEdit,
   isDragging,
+  isHighlighted,
+  isCompleting,
+  isBouncing,
   onDragStart,
   onDragEnd,
   onDragOver,
@@ -146,9 +150,23 @@ export default function PersonCard({
   const p = PRIORITIES[person.priority] || PRIORITIES.NORMAL;
   const urgency = getDeadlineUrgency(person.deadline);
 
+  // Determine animation
+  let anim = "cardIn 0.4s cubic-bezier(.4,0,.2,1) both";
+  let animDelay = `${index * 0.06}s`;
+  if (isCompleting) {
+    anim = "completeCardLaunch 0.7s ease forwards";
+    animDelay = "0s";
+  } else if (isHighlighted) {
+    anim = "editHighlight 1.5s ease both";
+    animDelay = "0s";
+  } else if (isBouncing) {
+    anim = "bounceSettle 0.5s ease both";
+    animDelay = "0s";
+  }
+
   return (
     <div
-      draggable
+      draggable={!isCompleting}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onDragOver={onDragOver}
@@ -158,11 +176,11 @@ export default function PersonCard({
         flexDirection: "column",
         alignItems: "center",
         gap: "10px",
-        cursor: "grab",
+        cursor: isCompleting ? "default" : "grab",
         opacity: isDragging ? 0.35 : 1,
         transition: "all 0.35s cubic-bezier(.4,0,.2,1)",
-        animation: "cardIn 0.4s cubic-bezier(.4,0,.2,1) both",
-        animationDelay: `${index * 0.06}s`,
+        animation: anim,
+        animationDelay: animDelay,
         position: "relative",
       }}
     >
@@ -328,6 +346,7 @@ export default function PersonCard({
           <div style={{ display: "flex", gap: "6px", width: "100%" }}>
             <button onClick={onMoveFirst} title="Move to front" style={btnStyle("#ffffff14")}>⏮</button>
             <button onClick={onMoveLast} title="Move to back" style={btnStyle("#ffffff14")}>⏭</button>
+            <button onClick={onEdit} title="Edit" style={btnStyle("#f5c51818", "#f5c518")}>✏</button>
             <button onClick={onDelete} title="Remove" style={btnStyle("#ff3b3b18", "#ff3b3b")}>✕</button>
           </div>
         </div>

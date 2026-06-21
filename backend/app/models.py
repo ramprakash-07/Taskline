@@ -42,6 +42,8 @@ class QueueItemResponse(BaseModel):
     deadline: Optional[datetime] = None
     position: int = Field(..., description="Position in queue (0-indexed)")
     created_at: datetime
+    is_guest: bool = Field(default=False, description="Whether this belongs to a guest session")
+    expires_at: Optional[datetime] = Field(default=None, description="Expiry time for guest items")
 
 
 class QueueReorderRequest(BaseModel):
@@ -53,3 +55,26 @@ class MessageResponse(BaseModel):
     """Generic message response."""
     message: str
     name: Optional[str] = None
+
+
+# ─── Guest Mode Models ───
+
+class GuestSessionResponse(BaseModel):
+    """Response for guest session creation."""
+    guest_id: str = Field(..., description="Temporary guest user ID (UUID)")
+    expires_at: datetime = Field(..., description="Session expiry time")
+
+
+class GuestConvertRequest(BaseModel):
+    """Request to convert a guest queue to a permanent account."""
+    guest_id: str = Field(..., description="Guest ID to convert")
+
+
+# ─── Streak Models ───
+
+class StreakResponse(BaseModel):
+    """Response for streak data."""
+    current_streak: int = Field(default=0, description="Current consecutive day streak")
+    longest_streak: int = Field(default=0, description="All-time longest streak")
+    last_completed_date: Optional[str] = Field(default=None, description="Last completion date (YYYY-MM-DD)")
+    streak_increased: bool = Field(default=False, description="Whether the streak just increased (POST only)")

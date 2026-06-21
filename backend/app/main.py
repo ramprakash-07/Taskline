@@ -10,6 +10,8 @@ from fastapi.routing import APIRoute
 from app.config import get_settings
 from app.database import database
 from app.routes.queue import router as queue_router
+from app.routes.guest import router as guest_router
+from app.routes.streak import router as streak_router
 
 
 @asynccontextmanager
@@ -43,6 +45,8 @@ app.add_middleware(
 
 # Include routes
 app.include_router(queue_router)
+app.include_router(guest_router)
+app.include_router(streak_router)
 
 
 @app.api_route("/", methods=["GET", "HEAD"], tags=["Root"])

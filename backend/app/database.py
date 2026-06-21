@@ -23,6 +23,22 @@ class Database:
             [("user_id", 1), ("position", 1)],
             background=True,
         )
+
+        # TTL index for auto-deleting expired guest queue items
+        # MongoDB checks every ~60s and removes docs where expires_at < now
+        await self.db.queue_items.create_index(
+            "expires_at",
+            expireAfterSeconds=0,
+            sparse=True,  # Only index docs that have expires_at field
+            background=True,
+        )
+
+        # Index for guest session lookups
+        await self.db.guest_sessions.create_index(
+            "expires_at",
+            expireAfterSeconds=0,
+            background=True,
+        )
         print(f"✅ Connected to MongoDB: {settings.DATABASE_NAME}")
 
     async def disconnect(self):

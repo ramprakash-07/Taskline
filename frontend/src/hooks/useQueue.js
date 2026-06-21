@@ -1,6 +1,6 @@
 /**
  * Custom hook for queue state management.
- * Wraps all API calls and manages loading/error states.
+ * Supports both Clerk auth and Guest mode.
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -11,19 +11,23 @@ import {
   deleteItem as apiDeleteItem,
   completeItem as apiCompleteItem,
   reorderQueue,
+  updateItem as apiUpdateItem,
 } from "../api/api";
 
-export function useQueue() {
-  const { getToken } = useAuth();
+export function useQueue(guestId = null) {
+  const { getToken, isSignedIn } = useAuth();
   const [queue, setQueue] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Use Clerk getToken for authenticated users, null for guests
+  const tokenFn = isSignedIn ? getToken : null;
 
   /** Fetch the queue from the API. */
   const refreshQueue = useCallback(async () => {
     try {
       setError(null);
-      const items = await fetchQueue(getToken);
+      const items = await fetchQueue(tokenFn, guestId);
       setQueue(items);
     } catch (err) {
       console.error("Failed to fetch queue:", err);
@@ -31,28 +35,33 @@ export function useQueue() {
     } finally {
       setLoading(false);
     }
-  }, [getToken]);
+  }, [tokenFn, guestId]);
 
   /** Load queue on mount. */
   useEffect(() => {
-    refreshQueue();
-  }, [refreshQueue]);
+    if (isSignedIn || guestId) {
+      refreshQueue();
+    } else {
+      setLoading(false);
+    }
+  }, [refreshQueue, isSignedIn, guestId]);
 
   /** Add a new item to the queue. */
   const addItem = useCallback(
     async (data) => {
       try {
         setError(null);
-        const newItem = await createItem(getToken, data);
+        const newItem = await createItem(tokenFn, data, guestId);
         setQueue((q) => [...q, newItem]);
         return newItem;
       } catch (err) {
         console.error("Failed to create item:", err);
-        setError("Failed to add item. Please try again.");
+        const detail = err.response?.data?.detail;
+        setError(detail || "Failed to add item. Please try again.");
         throw err;
       }
     },
-    [getToken]
+    [tokenFn, guestId]
   );
 
   /** Remove an item from the queue. */
@@ -62,14 +71,14 @@ export function useQueue() {
         setError(null);
         // Optimistic update
         setQueue((q) => q.filter((item) => item.id !== itemId));
-        await apiDeleteItem(getToken, itemId);
+        await apiDeleteItem(tokenFn, itemId, guestId);
       } catch (err) {
         console.error("Failed to delete item:", err);
         setError("Failed to delete item. Please try again.");
         await refreshQueue(); // Revert on failure
       }
     },
-    [getToken, refreshQueue]
+    [tokenFn, guestId, refreshQueue]
   );
 
   /** Complete an item (remove + return name for celebration). */
@@ -80,7 +89,7 @@ export function useQueue() {
         const item = queue.find((i) => i.id === itemId);
         // Optimistic removal
         setQueue((q) => q.filter((i) => i.id !== itemId));
-        const result = await apiCompleteItem(getToken, itemId);
+        const result = await apiCompleteItem(tokenFn, itemId, guestId);
         return result.name || item?.name;
       } catch (err) {
         console.error("Failed to complete item:", err);
@@ -89,7 +98,34 @@ export function useQueue() {
         return null;
       }
     },
-    [getToken, queue, refreshQueue]
+    [tokenFn, guestId, queue, refreshQueue]
+  );
+
+  /** Update an item in-place (preserving position). */
+  const updateItemAction = useCallback(
+    async (itemId, data) => {
+      try {
+        setError(null);
+        // Optimistic update — merge changes in-place
+        setQueue((q) =>
+          q.map((item) =>
+            item.id === itemId ? { ...item, ...data } : item
+          )
+        );
+        const updated = await apiUpdateItem(tokenFn, itemId, data, guestId);
+        // Replace with server response to ensure consistency
+        setQueue((q) =>
+          q.map((item) => (item.id === itemId ? updated : item))
+        );
+        return updated;
+      } catch (err) {
+        console.error("Failed to update item:", err);
+        setError("Failed to update item. Please try again.");
+        await refreshQueue(); // Revert on failure
+        return null;
+      }
+    },
+    [tokenFn, guestId, refreshQueue]
   );
 
   /** Reorder items (optimistic + API sync). */
@@ -100,14 +136,14 @@ export function useQueue() {
         // Optimistic update
         setQueue(newQueue);
         const itemIds = newQueue.map((item) => item.id);
-        await reorderQueue(getToken, itemIds);
+        await reorderQueue(tokenFn, itemIds, guestId);
       } catch (err) {
         console.error("Failed to reorder:", err);
         setError("Failed to reorder. Please try again.");
         await refreshQueue(); // Revert on failure
       }
     },
-    [getToken, refreshQueue]
+    [tokenFn, guestId, refreshQueue]
   );
 
   /** Sort by priority (optimistic + API sync). */
@@ -126,6 +162,7 @@ export function useQueue() {
     addItem,
     removeItem,
     completeItem: completeItemAction,
+    updateItem: updateItemAction,
     reorderItems,
     sortByPriority,
     refreshQueue,

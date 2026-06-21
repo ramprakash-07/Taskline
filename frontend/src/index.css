@@ -52,6 +52,13 @@ html, body, #root {
   100% { background-position: 200% 0; }
 }
 
+@keyframes editHighlight {
+  0%   { filter: brightness(1); box-shadow: 0 0 0 0 #FFD70000; }
+  15%  { filter: brightness(1.15); box-shadow: 0 0 24px #FFD70060; }
+  50%  { filter: brightness(1.08); box-shadow: 0 0 16px #FFD70040; }
+  100% { filter: brightness(1); box-shadow: 0 0 0 0 #FFD70000; }
+}
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
@@ -64,6 +71,54 @@ html, body, #root {
 @keyframes glowPulse {
   0%, 100% { box-shadow: 0 0 20px #ff3b3b20; }
   50%      { box-shadow: 0 0 40px #ff3b3b40; }
+}
+
+/* ─── Completion Animation Keyframes ─── */
+
+@keyframes completeCardLaunch {
+  0%   { transform: scale(1) translate(0, 0) rotate(0deg); opacity: 1; filter: brightness(1); }
+  15%  { transform: scale(1.12) translate(0, 0) rotate(0deg); opacity: 1; filter: brightness(1.6); }
+  40%  { transform: scale(1.08) translate(20px, -30px) rotate(4deg); opacity: 0.9; filter: brightness(1.2); }
+  100% { transform: scale(0.3) translate(80px, -120px) rotate(12deg); opacity: 0; filter: brightness(2); }
+}
+
+@keyframes lightRingExpand {
+  0%   { width: 0; height: 0; opacity: 1; }
+  60%  { width: 300px; height: 300px; opacity: 0.6; }
+  100% { width: 500px; height: 500px; opacity: 0; }
+}
+
+@keyframes particleBurst {
+  0%   { transform: translate(0, 0) rotate(0deg) scale(0); opacity: 1; }
+  30%  { opacity: 1; transform: translate(calc(var(--px) * 0.4), calc(var(--py) * 0.4)) rotate(calc(var(--pr) * 0.5)) scale(1.2); }
+  100% { transform: translate(var(--px), var(--py)) rotate(var(--pr)) scale(0.3); opacity: 0; }
+}
+
+@keyframes bounceSettle {
+  0%   { transform: translateX(-28px); opacity: 0.7; }
+  60%  { transform: translateX(6px); opacity: 1; }
+  80%  { transform: translateX(-3px); }
+  100% { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes streakScaleUp {
+  0%   { transform: scale(0.3); opacity: 0; }
+  50%  { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Screen shake class applied to body during completion */
+.screen-shake {
+  animation: screenShake 0.15s ease both;
+}
+
+@keyframes screenShake {
+  0%   { transform: translate(0, 0); }
+  20%  { transform: translate(-3px, 2px); }
+  40%  { transform: translate(3px, -2px); }
+  60%  { transform: translate(-2px, -1px); }
+  80%  { transform: translate(2px, 1px); }
+  100% { transform: translate(0, 0); }
 }
 
 /* ─── Scrollbar ─── */

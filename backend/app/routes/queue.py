@@ -1,15 +1,15 @@
 """
-Queue CRUD endpoints — all scoped to the authenticated user.
+Queue CRUD endpoints — supports both authenticated users and guests.
 """
 
-from datetime import datetime, timezone
-from typing import List
+from datetime import datetime, timezone, timedelta
+from typing import List, Tuple
 from bson import ObjectId
 from bson.errors import InvalidId
 from fastapi import APIRouter, Depends, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.auth import get_current_user
+from app.auth import get_current_user_or_guest
 from app.database import get_database
 from app.models import (
     QueueItemCreate,
@@ -20,6 +20,9 @@ from app.models import (
 )
 
 router = APIRouter(prefix="/api/queue", tags=["Queue"])
+
+GUEST_MAX_ITEMS = 10
+GUEST_SESSION_DURATION_HOURS = 2
 
 
 def _to_response(doc: dict) -> QueueItemResponse:
@@ -33,6 +36,8 @@ def _to_response(doc: dict) -> QueueItemResponse:
         deadline=doc.get("deadline"),
         position=doc.get("position", 0),
         created_at=doc.get("created_at", datetime.now(timezone.utc)),
+        is_guest=doc.get("is_guest", False),
+        expires_at=doc.get("expires_at"),
     )
 
 
@@ -49,10 +54,11 @@ def _validate_object_id(item_id: str) -> ObjectId:
 
 @router.get("", response_model=List[QueueItemResponse])
 async def get_queue(
-    user_id: str = Depends(get_current_user),
+    auth: Tuple[str, bool] = Depends(get_current_user_or_guest),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ):
-    """Get all queue items for the authenticated user, ordered by position."""
+    """Get all queue items for the current user/guest, ordered by position."""
+    user_id, is_guest = auth
     cursor = db.queue_items.find({"user_id": user_id}).sort("position", 1)
     items = await cursor.to_list(length=500)
     return [_to_response(item) for item in items]
@@ -61,10 +67,21 @@ async def get_queue(
 @router.post("", response_model=QueueItemResponse, status_code=status.HTTP_201_CREATED)
 async def create_queue_item(
     item: QueueItemCreate,
-    user_id: str = Depends(get_current_user),
+    auth: Tuple[str, bool] = Depends(get_current_user_or_guest),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ):
     """Create a new queue item at the end of the user's queue."""
+    user_id, is_guest = auth
+
+    # Enforce guest item limit
+    if is_guest:
+        count = await db.queue_items.count_documents({"user_id": user_id})
+        if count >= GUEST_MAX_ITEMS:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Guest users are limited to {GUEST_MAX_ITEMS} items. Sign up for unlimited access!",
+            )
+
     # Find the current max position for this user
     last_item = await db.queue_items.find_one(
         {"user_id": user_id},
@@ -82,6 +99,11 @@ async def create_queue_item(
         "created_at": datetime.now(timezone.utc),
     }
 
+    # Add guest-specific fields
+    if is_guest:
+        doc["is_guest"] = True
+        doc["expires_at"] = datetime.now(timezone.utc) + timedelta(hours=GUEST_SESSION_DURATION_HOURS)
+
     result = await db.queue_items.insert_one(doc)
     doc["_id"] = result.inserted_id
     return _to_response(doc)
@@ -90,10 +112,12 @@ async def create_queue_item(
 @router.put("/reorder", response_model=MessageResponse)
 async def reorder_queue(
     reorder: QueueReorderRequest,
-    user_id: str = Depends(get_current_user),
+    auth: Tuple[str, bool] = Depends(get_current_user_or_guest),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ):
     """Reorder queue items. Accepts a list of item IDs in desired order."""
+    user_id, is_guest = auth
+
     # Validate all IDs and verify ownership
     object_ids = [_validate_object_id(id_str) for id_str in reorder.item_ids]
 
@@ -129,10 +153,11 @@ async def reorder_queue(
 async def update_queue_item(
     item_id: str,
     update: QueueItemUpdate,
-    user_id: str = Depends(get_current_user),
+    auth: Tuple[str, bool] = Depends(get_current_user_or_guest),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ):
     """Update a queue item's fields."""
+    user_id, is_guest = auth
     oid = _validate_object_id(item_id)
 
     # Build update dict with only provided fields
@@ -164,10 +189,11 @@ async def update_queue_item(
 @router.delete("/{item_id}", response_model=MessageResponse)
 async def delete_queue_item(
     item_id: str,
-    user_id: str = Depends(get_current_user),
+    auth: Tuple[str, bool] = Depends(get_current_user_or_guest),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ):
     """Delete a queue item and recompute positions."""
+    user_id, is_guest = auth
     oid = _validate_object_id(item_id)
 
     # Find and delete the item
@@ -190,10 +216,11 @@ async def delete_queue_item(
 @router.post("/{item_id}/complete", response_model=MessageResponse)
 async def complete_queue_item(
     item_id: str,
-    user_id: str = Depends(get_current_user),
+    auth: Tuple[str, bool] = Depends(get_current_user_or_guest),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ):
     """Mark a queue item as complete (removes it from the queue)."""
+    user_id, is_guest = auth
     oid = _validate_object_id(item_id)
 
     # Find and delete the completed item

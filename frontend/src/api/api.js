@@ -1,6 +1,6 @@
 /**
  * API client for TaskLine backend.
- * All functions accept a getToken function from Clerk's useAuth().
+ * Supports both Clerk auth (getToken) and Guest mode (guestId).
  */
 
 import axios from "axios";
@@ -13,18 +13,26 @@ const api = axios.create({
 });
 
 /**
- * Helper to build auth headers using Clerk's getToken.
+ * Build auth headers — Clerk Bearer token or Guest ID.
+ * @param {Function|null} getToken - Clerk's getToken function (null for guests)
+ * @param {string|null} guestId - Guest UUID (null for authenticated users)
  */
-async function authHeaders(getToken) {
-  const token = await getToken();
-  return { Authorization: `Bearer ${token}` };
+async function authHeaders(getToken, guestId) {
+  if (guestId) {
+    return { "X-Guest-ID": guestId };
+  }
+  if (getToken) {
+    const token = await getToken();
+    return { Authorization: `Bearer ${token}` };
+  }
+  throw new Error("No auth method provided");
 }
 
 /**
- * Fetch all queue items for the current user.
+ * Fetch all queue items for the current user/guest.
  */
-export async function fetchQueue(getToken) {
-  const headers = await authHeaders(getToken);
+export async function fetchQueue(getToken, guestId = null) {
+  const headers = await authHeaders(getToken, guestId);
   const res = await api.get("/api/queue", { headers });
   return res.data;
 }
@@ -33,8 +41,8 @@ export async function fetchQueue(getToken) {
  * Create a new queue item.
  * @param {Object} data - { name, task, priority, deadline }
  */
-export async function createItem(getToken, data) {
-  const headers = await authHeaders(getToken);
+export async function createItem(getToken, data, guestId = null) {
+  const headers = await authHeaders(getToken, guestId);
   const res = await api.post("/api/queue", data, { headers });
   return res.data;
 }
@@ -42,8 +50,8 @@ export async function createItem(getToken, data) {
 /**
  * Delete a queue item by ID.
  */
-export async function deleteItem(getToken, itemId) {
-  const headers = await authHeaders(getToken);
+export async function deleteItem(getToken, itemId, guestId = null) {
+  const headers = await authHeaders(getToken, guestId);
   const res = await api.delete(`/api/queue/${itemId}`, { headers });
   return res.data;
 }
@@ -52,8 +60,8 @@ export async function deleteItem(getToken, itemId) {
  * Mark a queue item as complete.
  * Returns { message, name } for celebration.
  */
-export async function completeItem(getToken, itemId) {
-  const headers = await authHeaders(getToken);
+export async function completeItem(getToken, itemId, guestId = null) {
+  const headers = await authHeaders(getToken, guestId);
   const res = await api.post(`/api/queue/${itemId}/complete`, {}, { headers });
   return res.data;
 }
@@ -62,8 +70,8 @@ export async function completeItem(getToken, itemId) {
  * Reorder queue items.
  * @param {string[]} itemIds - Array of item IDs in desired order.
  */
-export async function reorderQueue(getToken, itemIds) {
-  const headers = await authHeaders(getToken);
+export async function reorderQueue(getToken, itemIds, guestId = null) {
+  const headers = await authHeaders(getToken, guestId);
   const res = await api.put("/api/queue/reorder", { item_ids: itemIds }, { headers });
   return res.data;
 }
@@ -72,8 +80,58 @@ export async function reorderQueue(getToken, itemIds) {
  * Update a queue item's fields.
  * @param {Object} data - { name?, task?, priority?, deadline? }
  */
-export async function updateItem(getToken, itemId, data) {
-  const headers = await authHeaders(getToken);
+export async function updateItem(getToken, itemId, data, guestId = null) {
+  const headers = await authHeaders(getToken, guestId);
   const res = await api.put(`/api/queue/${itemId}`, data, { headers });
+  return res.data;
+}
+
+// ─── Guest-specific endpoints ───
+
+/**
+ * Create a new guest session.
+ * Returns { guest_id, expires_at }
+ */
+export async function createGuestSession() {
+  const res = await api.post("/api/guest/session");
+  return res.data;
+}
+
+/**
+ * Convert a guest queue to a permanent account.
+ * Requires Clerk auth + guest_id.
+ */
+export async function convertGuestQueue(getToken, guestId) {
+  const token = await getToken();
+  const res = await api.post(
+    "/api/guest/convert",
+    { guest_id: guestId },
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  return res.data;
+}
+
+// ─── Streak endpoints ───
+
+/**
+ * Fetch the current user's streak data.
+ */
+export async function fetchStreak(getToken) {
+  const token = await getToken();
+  const res = await api.get("/api/streak", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.data;
+}
+
+/**
+ * Record a streak completion for today.
+ * Returns { current_streak, longest_streak, last_completed_date, streak_increased }
+ */
+export async function completeStreak(getToken) {
+  const token = await getToken();
+  const res = await api.post("/api/streak/complete", {}, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
   return res.data;
 }
