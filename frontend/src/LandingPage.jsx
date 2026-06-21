@@ -197,7 +197,7 @@ export default function LandingPage() {
           letterSpacing: "1px",
         }}
       >
-        BUILT WITH ❤️ BY RAM PRAKASH
+        BUILT WITH ❤️ BY RAMPRAKASH
       </div>
     </div>
   );
