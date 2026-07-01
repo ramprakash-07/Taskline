@@ -12,13 +12,19 @@ from app.database import database
 from app.routes.queue import router as queue_router
 from app.routes.guest import router as guest_router
 from app.routes.streak import router as streak_router
+from app.routes.rooms import router as rooms_router
+from app.routes.briefing import router as briefing_router
+from app.ws.rooms import websocket_endpoint as room_ws_endpoint
+from app.scheduler import start_scheduler, stop_scheduler
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan: connect/disconnect database."""
     await database.connect()
+    start_scheduler()
     yield
+    stop_scheduler()
     await database.disconnect()
 
 
@@ -47,6 +53,11 @@ app.add_middleware(
 app.include_router(queue_router)
 app.include_router(guest_router)
 app.include_router(streak_router)
+app.include_router(rooms_router)
+app.include_router(briefing_router)
+
+# WebSocket route for rooms
+app.websocket("/ws/rooms/{room_id}")(room_ws_endpoint)
 
 
 @app.api_route("/", methods=["GET", "HEAD"], tags=["Root"])

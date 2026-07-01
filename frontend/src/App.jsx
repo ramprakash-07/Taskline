@@ -5,13 +5,17 @@
 
 import { useState, useEffect } from "react";
 import { ClerkProvider, SignedIn, SignedOut, useAuth } from "@clerk/clerk-react";
-import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useNavigate, Navigate } from "react-router-dom";
 import { GuestProvider, useGuest } from "./contexts/GuestContext";
 import { convertGuestQueue } from "./api/api";
 import SignInPage from "./SignInPage";
 import SignUpPage from "./SignUpPage";
 import QueueApp from "./QueueApp";
 import LandingPage from "./LandingPage";
+import RoomsList from "./components/RoomsList";
+import TeamQueue from "./pages/TeamQueue";
+import JoinRoom from "./pages/JoinRoom";
+import Settings from "./pages/Settings";
 
 const CLERK_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
@@ -39,7 +43,6 @@ function GuestConversion({ children }) {
         const result = await convertGuestQueue(getToken, guestId);
         console.log("[TaskLine] Guest conversion success:", result.message);
       } catch (err) {
-        // Conversion may fail if guest session expired or had no items — that's OK
         console.warn("[TaskLine] Guest conversion failed (non-critical):", err.response?.data?.detail || err.message);
       } finally {
         clearGuest();
@@ -80,6 +83,16 @@ function GuestConversion({ children }) {
   return children;
 }
 
+/** Wrapper: requires Clerk sign-in, redirects to /sign-in if not. */
+function ProtectedRoute({ children }) {
+  return (
+    <>
+      <SignedIn>{children}</SignedIn>
+      <SignedOut><Navigate to="/sign-in" replace /></SignedOut>
+    </>
+  );
+}
+
 /**
  * MainRoute — handles 3 states:
  * 1. Signed in → QueueApp (authenticated)
@@ -117,6 +130,10 @@ function ClerkWithRoutes() {
           <Routes>
             <Route path="/sign-in/*" element={<SignInPage />} />
             <Route path="/sign-up/*" element={<SignUpPage />} />
+            <Route path="/rooms" element={<ProtectedRoute><RoomsList /></ProtectedRoute>} />
+            <Route path="/rooms/:roomId" element={<ProtectedRoute><TeamQueue /></ProtectedRoute>} />
+            <Route path="/join/:roomId" element={<JoinRoom />} />
+            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/*" element={<MainRoute />} />
           </Routes>
         </GuestConversion>
@@ -132,3 +149,4 @@ export default function App() {
     </BrowserRouter>
   );
 }
+

@@ -1,7 +1,4 @@
-"""
-Pydantic models for request/response validation.
-"""
-
+"""Pydantic models for request/response validation."""
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, Field
@@ -9,7 +6,6 @@ from enum import Enum
 
 
 class Priority(str, Enum):
-    """Queue item priority levels."""
     CRITICAL = "CRITICAL"
     HIGH = "HIGH"
     NORMAL = "NORMAL"
@@ -17,15 +13,13 @@ class Priority(str, Enum):
 
 
 class QueueItemCreate(BaseModel):
-    """Schema for creating a new queue item."""
-    name: str = Field(..., min_length=1, max_length=100, description="Person's name")
-    task: str = Field(..., min_length=1, max_length=500, description="Task description")
-    priority: Priority = Field(default=Priority.NORMAL, description="Task priority")
-    deadline: Optional[datetime] = Field(default=None, description="Task deadline")
+    name: str = Field(..., min_length=1, max_length=100)
+    task: str = Field(..., min_length=1, max_length=500)
+    priority: Priority = Field(default=Priority.NORMAL)
+    deadline: Optional[datetime] = None
 
 
 class QueueItemUpdate(BaseModel):
-    """Schema for updating an existing queue item."""
     name: Optional[str] = Field(default=None, min_length=1, max_length=100)
     task: Optional[str] = Field(default=None, min_length=1, max_length=500)
     priority: Optional[Priority] = None
@@ -33,48 +27,99 @@ class QueueItemUpdate(BaseModel):
 
 
 class QueueItemResponse(BaseModel):
-    """Schema for queue item API responses."""
-    id: str = Field(..., description="Item ID")
-    user_id: str = Field(..., description="Owner user ID")
+    id: str
+    user_id: str
     name: str
     task: str
     priority: str
     deadline: Optional[datetime] = None
-    position: int = Field(..., description="Position in queue (0-indexed)")
+    position: int
     created_at: datetime
-    is_guest: bool = Field(default=False, description="Whether this belongs to a guest session")
-    expires_at: Optional[datetime] = Field(default=None, description="Expiry time for guest items")
+    is_guest: bool = False
+    expires_at: Optional[datetime] = None
 
 
 class QueueReorderRequest(BaseModel):
-    """Schema for reordering queue items."""
-    item_ids: List[str] = Field(..., min_length=1, description="Item IDs in desired order")
+    item_ids: List[str] = Field(..., min_length=1)
 
 
 class MessageResponse(BaseModel):
-    """Generic message response."""
     message: str
     name: Optional[str] = None
 
 
-# ─── Guest Mode Models ───
-
 class GuestSessionResponse(BaseModel):
-    """Response for guest session creation."""
-    guest_id: str = Field(..., description="Temporary guest user ID (UUID)")
-    expires_at: datetime = Field(..., description="Session expiry time")
+    guest_id: str
+    expires_at: datetime
 
 
 class GuestConvertRequest(BaseModel):
-    """Request to convert a guest queue to a permanent account."""
-    guest_id: str = Field(..., description="Guest ID to convert")
+    guest_id: str
 
-
-# ─── Streak Models ───
 
 class StreakResponse(BaseModel):
-    """Response for streak data."""
-    current_streak: int = Field(default=0, description="Current consecutive day streak")
-    longest_streak: int = Field(default=0, description="All-time longest streak")
-    last_completed_date: Optional[str] = Field(default=None, description="Last completion date (YYYY-MM-DD)")
-    streak_increased: bool = Field(default=False, description="Whether the streak just increased (POST only)")
+    current_streak: int = 0
+    longest_streak: int = 0
+    last_completed_date: Optional[str] = None
+    streak_increased: bool = False
+
+
+# ─── Room/Team Models ───
+
+class RoomCreate(BaseModel):
+    room_name: str = Field(..., min_length=1, max_length=100, description="Team room name")
+
+
+class RoomResponse(BaseModel):
+    id: str
+    room_name: str
+    owner_id: str
+    member_ids: List[str]
+    invite_link: str
+    created_at: datetime
+
+
+class RoomTaskCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    task: str = Field(..., min_length=1, max_length=500)
+    priority: Priority = Field(default=Priority.NORMAL)
+    deadline: Optional[datetime] = None
+    assigned_to: str = Field(..., description="User ID of the assigned member")
+
+
+class RoomTaskUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    task: Optional[str] = Field(default=None, min_length=1, max_length=500)
+    priority: Optional[Priority] = None
+    deadline: Optional[datetime] = None
+    assigned_to: Optional[str] = None
+
+
+class RoomTaskResponse(BaseModel):
+    id: str
+    room_id: str
+    assigned_to: str
+    name: str
+    task: str
+    priority: str
+    deadline: Optional[datetime] = None
+    position: int
+    created_at: datetime
+
+
+# ─── Briefing Models ───
+
+class BriefingPreferences(BaseModel):
+    briefing_enabled: bool = True
+    briefing_time: str = Field(default="09:00", description="HH:MM format")
+    timezone: str = Field(default="UTC")
+    email: Optional[str] = None
+
+
+class BriefingData(BaseModel):
+    greeting: str
+    task_count: int
+    up_next: Optional[QueueItemResponse] = None
+    urgent_count: int
+    current_streak: int = 0
+    dismissed_today: bool = False

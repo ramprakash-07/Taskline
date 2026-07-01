@@ -39,6 +39,21 @@ class Database:
             expireAfterSeconds=0,
             background=True,
         )
+
+        # Room indexes
+        await self.db.rooms.create_index("owner_id", background=True)
+        await self.db.rooms.create_index("member_ids", background=True)
+
+        # Room tasks index
+        await self.db.room_tasks.create_index(
+            [("room_id", 1), ("position", 1)],
+            background=True,
+        )
+
+        # User preferences index
+        await self.db.user_preferences.create_index(
+            "user_id", unique=True, background=True,
+        )
         print(f"✅ Connected to MongoDB: {settings.DATABASE_NAME}")
 
     async def disconnect(self):

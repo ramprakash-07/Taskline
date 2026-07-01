@@ -12,8 +12,10 @@ import EditTaskModal from "./components/EditTaskModal";
 import GuestBanner from "./components/GuestBanner";
 import StreakRiskBanner from "./components/StreakRiskBanner";
 import ShareStreakCard from "./components/ShareStreakCard";
+import BriefingModal from "./components/BriefingModal";
 import { useQueue } from "./hooks/useQueue";
 import { useStreak } from "./hooks/useStreak";
+import { useBriefing } from "./hooks/useBriefing";
 import { useGuest } from "./contexts/GuestContext";
 
 export default function QueueApp() {
@@ -37,6 +39,7 @@ export default function QueueApp() {
   } = useQueue(isGuest ? guestId : null);
 
   const { streak, recordCompletion, isAtRisk } = useStreak();
+  const { briefing, showModal: showBriefing, dismiss: dismissBriefing } = useBriefing();
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", task: "", priority: "NORMAL", deadline: "" });
@@ -212,6 +215,11 @@ export default function QueueApp() {
         <StreakRiskBanner currentStreak={streak.current_streak} />
       )}
 
+      {/* Morning Briefing Modal */}
+      {!isGuest && showBriefing && briefing && (
+        <BriefingModal briefing={briefing} onDismiss={dismissBriefing} />
+      )}
+
       {/* Celebration overlay */}
       {celebration && (
         <CelebrationBurst
@@ -332,6 +340,45 @@ export default function QueueApp() {
           )}
 
           <div style={{ width: "1px", height: "32px", background: "#ffffff10" }} />
+
+          {/* Team Queues + Settings (auth only) */}
+          {!isGuest && (
+            <>
+              <button
+                onClick={() => navigate("/rooms")}
+                style={{
+                  background: "#a855f710",
+                  border: "1px solid #a855f730",
+                  color: "#a855f7",
+                  borderRadius: "10px",
+                  padding: "8px 16px",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                  fontFamily: "'DM Mono', monospace",
+                  fontWeight: 700,
+                  transition: "all 0.3s ease",
+                }}
+              >
+                👥 Teams
+              </button>
+              <button
+                onClick={() => navigate("/settings")}
+                title="Settings"
+                style={{
+                  background: "#ffffff08",
+                  border: "1px solid #ffffff14",
+                  color: "#ffffff50",
+                  borderRadius: "10px",
+                  padding: "8px 12px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  transition: "all 0.3s ease",
+                }}
+              >
+                ⚙️
+              </button>
+            </>
+          )}
 
           <button
             onClick={handleSort}

@@ -135,3 +135,97 @@ export async function completeStreak(getToken) {
   });
   return res.data;
 }
+
+// ─── Room endpoints ───
+
+export async function createRoom(getToken, data) {
+  const token = await getToken();
+  const res = await api.post("/api/rooms", data, { headers: { Authorization: `Bearer ${token}` } });
+  return res.data;
+}
+
+export async function fetchRooms(getToken) {
+  const token = await getToken();
+  const res = await api.get("/api/rooms", { headers: { Authorization: `Bearer ${token}` } });
+  return res.data;
+}
+
+export async function fetchRoom(getToken, roomId) {
+  const token = await getToken();
+  const res = await api.get(`/api/rooms/${roomId}`, { headers: { Authorization: `Bearer ${token}` } });
+  return res.data;
+}
+
+export async function joinRoom(getToken, roomId) {
+  const token = await getToken();
+  const res = await api.post(`/api/rooms/${roomId}/join`, {}, { headers: { Authorization: `Bearer ${token}` } });
+  return res.data;
+}
+
+export async function deleteRoom(getToken, roomId) {
+  const token = await getToken();
+  const res = await api.delete(`/api/rooms/${roomId}`, { headers: { Authorization: `Bearer ${token}` } });
+  return res.data;
+}
+
+export async function fetchRoomQueue(getToken, roomId) {
+  const token = await getToken();
+  const res = await api.get(`/api/rooms/${roomId}/queue`, { headers: { Authorization: `Bearer ${token}` } });
+  return res.data;
+}
+
+export async function addRoomTask(getToken, roomId, data) {
+  const token = await getToken();
+  const res = await api.post(`/api/rooms/${roomId}/tasks`, data, { headers: { Authorization: `Bearer ${token}` } });
+  return res.data;
+}
+
+export async function reorderRoomTasks(getToken, roomId, itemIds) {
+  const token = await getToken();
+  const res = await api.put(`/api/rooms/${roomId}/tasks/reorder`, { item_ids: itemIds }, { headers: { Authorization: `Bearer ${token}` } });
+  return res.data;
+}
+
+export async function updateRoomTask(getToken, roomId, taskId, data) {
+  const token = await getToken();
+  const res = await api.put(`/api/rooms/${roomId}/tasks/${taskId}`, data, { headers: { Authorization: `Bearer ${token}` } });
+  return res.data;
+}
+
+export async function deleteRoomTask(getToken, roomId, taskId) {
+  const token = await getToken();
+  const res = await api.delete(`/api/rooms/${roomId}/tasks/${taskId}`, { headers: { Authorization: `Bearer ${token}` } });
+  return res.data;
+}
+
+export async function completeRoomTask(getToken, roomId, taskId) {
+  const token = await getToken();
+  const res = await api.post(`/api/rooms/${roomId}/tasks/${taskId}/complete`, {}, { headers: { Authorization: `Bearer ${token}` } });
+  return res.data;
+}
+
+// ─── Briefing endpoints ───
+
+export async function fetchBriefing(getToken) {
+  const token = await getToken();
+  const res = await api.get("/api/briefing", { headers: { Authorization: `Bearer ${token}` } });
+  return res.data;
+}
+
+export async function fetchBriefingPreferences(getToken) {
+  const token = await getToken();
+  const res = await api.get("/api/briefing/preferences", { headers: { Authorization: `Bearer ${token}` } });
+  return res.data;
+}
+
+export async function updateBriefingPreferences(getToken, data) {
+  const token = await getToken();
+  const res = await api.put("/api/briefing/preferences", data, { headers: { Authorization: `Bearer ${token}` } });
+  return res.data;
+}
+
+export async function dismissBriefing(getToken) {
+  const token = await getToken();
+  const res = await api.post("/api/briefing/dismiss", {}, { headers: { Authorization: `Bearer ${token}` } });
+  return res.data;
+}
