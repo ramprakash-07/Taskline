@@ -8,10 +8,11 @@ import { useAuth } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
 import { fetchRooms, createRoom, deleteRoom } from "../api/api";
 
+
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export default function RoomsList() {
-  const { getToken } = useAuth();
+  const { getToken, userId } = useAuth();
   const navigate = useNavigate();
 
   const [rooms, setRooms] = useState([]);
@@ -39,7 +40,7 @@ export default function RoomsList() {
     if (!roomName.trim()) return;
     setCreating(true);
     try {
-      const newRoom = await createRoom(getToken, { name: roomName.trim() });
+      const newRoom = await createRoom(getToken, { room_name: roomName.trim() });
       setRooms((r) => [...r, newRoom]);
       setRoomName("");
       setShowCreate(false);
@@ -133,12 +134,12 @@ export default function RoomsList() {
               <div style={styles.roomIcon}>🚀</div>
 
               {/* Room name */}
-              <div style={styles.roomName}>{room.name}</div>
+              <div style={styles.roomName}>{room.room_name}</div>
 
               {/* Member count */}
               <div style={styles.memberCount}>
                 <span style={styles.memberDot} />
-                {room.member_count || room.members?.length || 1} member{(room.member_count || room.members?.length || 1) !== 1 ? "s" : ""}
+                {(room.member_ids || []).length} member{(room.member_ids || []).length !== 1 ? "s" : ""}
               </div>
 
               {/* Actions row */}
@@ -154,7 +155,7 @@ export default function RoomsList() {
                 >
                   {copiedId === room.id ? "✓ Copied!" : "🔗 Invite"}
                 </button>
-                {room.is_owner && (
+                {room.owner_id === userId && (
                   <button
                     onClick={(e) => handleDelete(e, room.id)}
                     style={styles.deleteBtn}
@@ -166,7 +167,7 @@ export default function RoomsList() {
               </div>
 
               {/* Owner badge */}
-              {room.is_owner && (
+              {room.owner_id === userId && (
                 <div style={styles.ownerBadge}>OWNER</div>
               )}
             </div>
