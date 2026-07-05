@@ -18,6 +18,7 @@ from app.models import (
     RoomTaskCreate,
     RoomTaskResponse,
     RoomTaskUpdate,
+    SetMemberNameRequest,
 )
 from app.ws.rooms import broadcast_room_update
 
@@ -34,17 +35,20 @@ def _to_room_response(doc: dict) -> RoomResponse:
         room_name=doc["room_name"],
         owner_id=doc["owner_id"],
         member_ids=doc.get("member_ids", []),
+        member_names=doc.get("member_names", {}),
         invite_link=doc.get("invite_link", ""),
         created_at=doc["created_at"],
     )
 
 
-def _to_task_response(doc: dict) -> RoomTaskResponse:
+def _to_task_response(doc: dict, member_names: dict = None) -> RoomTaskResponse:
     """Convert a MongoDB room_task document to a RoomTaskResponse."""
+    names = member_names or {}
     return RoomTaskResponse(
         id=str(doc["_id"]),
         room_id=doc["room_id"],
         assigned_to=doc["assigned_to"],
+        assigned_name=names.get(doc["assigned_to"], ""),
         name=doc["name"],
         task=doc["task"],
         priority=doc["priority"],
@@ -172,6 +176,7 @@ async def create_room(
         "room_name": body.room_name,
         "owner_id": user_id,
         "member_ids": [user_id],
+        "member_names": {},  # Will be set via set-name endpoint
         "invite_link": f"{settings.FRONTEND_URL}/join/{str(room_id)}",
         "created_at": datetime.now(timezone.utc),
     }
@@ -270,7 +275,10 @@ async def get_room_queue(
 
     cursor = db.room_tasks.find({"room_id": room_id}).sort("position", 1)
     tasks = await cursor.to_list(200)
-    return [_to_task_response(t) for t in tasks]
+    # Get member names from the room for assigned_name resolution
+    room = await db.rooms.find_one({"_id": ObjectId(room_id)})
+    names = room.get("member_names", {}) if room else {}
+    return [_to_task_response(t, names) for t in tasks]
 
 
 @router.post(
@@ -315,7 +323,9 @@ async def add_room_task(
 
     await db.room_tasks.insert_one(task_doc)
 
-    response = _to_task_response(task_doc)
+    # Resolve assigned name
+    names = room.get("member_names", {})
+    response = _to_task_response(task_doc, names)
     await broadcast_room_update(room_id, "task_added", response.model_dump(mode="json"))
     return response
 
@@ -409,7 +419,8 @@ async def update_room_task(
     )
 
     updated = await db.room_tasks.find_one({"_id": ObjectId(task_id)})
-    response = _to_task_response(updated)
+    names = room.get("member_names", {})
+    response = _to_task_response(updated, names)
     await broadcast_room_update(room_id, "task_updated", response.model_dump(mode="json"))
     return response
 
@@ -490,3 +501,33 @@ async def complete_room_task(
         room_id, "task_completed", {"task_id": task_id, "name": task_name}
     )
     return MessageResponse(message=f"Task '{task_name}' completed!", name=task_name)
+
+
+# ─── Member Name Endpoint ───
+
+
+@router.put("/{room_id}/set-name", response_model=RoomResponse)
+async def set_member_name(
+    room_id: str,
+    body: SetMemberNameRequest,
+    user_id: str = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+):
+    """Set or update the display name for the current user in a room.
+
+    This name is shown to all members alongside tasks and member lists.
+    """
+    room = await _verify_membership(db, room_id, user_id)
+
+    await db.rooms.update_one(
+        {"_id": ObjectId(room_id)},
+        {"$set": {f"member_names.{user_id}": body.display_name}},
+    )
+
+    # Re-fetch to return updated doc
+    updated_room = await db.rooms.find_one({"_id": ObjectId(room_id)})
+    await broadcast_room_update(
+        room_id, "member_name_set", {"user_id": user_id, "display_name": body.display_name}
+    )
+    return _to_room_response(updated_room)
+

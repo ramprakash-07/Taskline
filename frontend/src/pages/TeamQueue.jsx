@@ -20,7 +20,24 @@ function getMemberColor(memberId) {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
-function getMemberInitials(memberId) {
+function getMemberInitials(name) {
+  if (!name || name.length <= 2) return (name || "??").toUpperCase();
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
+function getMemberDisplayName(room, memberId, currentUserId) {
+  const names = room?.member_names || {};
+  if (memberId === currentUserId && names[memberId]) return `${names[memberId]} (You)`;
+  if (memberId === currentUserId) return "You";
+  return names[memberId] || memberId.slice(-6);
+}
+
+function getShortName(room, memberId, currentUserId) {
+  const names = room?.member_names || {};
+  if (memberId === currentUserId) return "ME";
+  if (names[memberId]) return getMemberInitials(names[memberId]);
   return memberId.slice(-2).toUpperCase();
 }
 
@@ -209,17 +226,20 @@ export default function TeamQueue() {
 
           {/* Members */}
           <div style={{ display: "flex", alignItems: "center", gap: "-4px" }}>
-            {(room?.member_ids || []).slice(0, 6).map((mid, i) => (
-              <div key={mid} style={{
+            {(room?.member_ids || []).slice(0, 6).map((mid, i) => {
+              const name = getMemberDisplayName(room, mid, userId);
+              return (
+              <div key={mid} title={name} style={{
                 width: "28px", height: "28px", borderRadius: "50%",
                 background: getMemberColor(mid), display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: "10px", fontWeight: 800, color: "#fff", fontFamily: "'DM Mono', monospace",
                 border: "2px solid #080b12", marginLeft: i > 0 ? "-6px" : 0, zIndex: 10 - i,
                 outline: mid === userId ? "2px solid #FFD700" : "none",
               }}>
-                {getMemberInitials(mid)}
+                {getShortName(room, mid, userId)}
               </div>
-            ))}
+              );
+            })}
             {(room?.member_ids || []).length > 6 && (
               <div style={{ fontSize: "11px", color: "#ffffff40", fontFamily: "'DM Mono', monospace", marginLeft: "4px" }}>
                 +{room.member_ids.length - 6}
@@ -303,7 +323,7 @@ export default function TeamQueue() {
               <option value="" style={{ background: "#1a1a2e" }}>Select member...</option>
               {(room?.member_ids || []).map(mid => (
                 <option key={mid} value={mid} style={{ background: "#1a1a2e" }}>
-                  {mid === userId ? "Me" : mid.slice(-6)}
+                  {getMemberDisplayName(room, mid, userId)}
                 </option>
               ))}
             </select>
@@ -379,7 +399,7 @@ export default function TeamQueue() {
                       fontFamily: "'DM Mono', monospace", zIndex: 2, border: "2px solid #080b12",
                       whiteSpace: "nowrap",
                     }}>
-                      {task.assigned_to === userId ? "ME" : getMemberInitials(task.assigned_to)}
+                      {getShortName(room, task.assigned_to, userId)}
                     </div>
                     <PersonCard
                       person={task}
@@ -397,6 +417,29 @@ export default function TeamQueue() {
                       onDragOver={isOwner ? handleDragOver : undefined}
                       onDrop={isOwner ? () => handleDrop(idx) : undefined}
                     />
+                    {/* Assigned member name below card */}
+                    <div style={{
+                      textAlign: "center", marginTop: "10px",
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+                    }}>
+                      <div style={{
+                        width: "16px", height: "16px", borderRadius: "50%",
+                        background: getMemberColor(task.assigned_to),
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: "7px", fontWeight: 800, color: "#fff",
+                        fontFamily: "'DM Mono', monospace", flexShrink: 0,
+                      }}>
+                        {getShortName(room, task.assigned_to, userId)}
+                      </div>
+                      <div style={{
+                        fontSize: "11px", color: "#ffffff50",
+                        fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
+                        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                        maxWidth: "120px",
+                      }}>
+                        {task.assigned_name || getMemberDisplayName(room, task.assigned_to, userId)}
+                      </div>
+                    </div>
                   </div>
                 );
               })}

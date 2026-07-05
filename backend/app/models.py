@@ -75,8 +75,13 @@ class RoomResponse(BaseModel):
     room_name: str
     owner_id: str
     member_ids: List[str]
+    member_names: dict = {}  # {user_id: display_name}
     invite_link: str
     created_at: datetime
+
+
+class SetMemberNameRequest(BaseModel):
+    display_name: str = Field(..., min_length=1, max_length=50, description="Display name for the member")
 
 
 class RoomTaskCreate(BaseModel):
@@ -99,6 +104,7 @@ class RoomTaskResponse(BaseModel):
     id: str
     room_id: str
     assigned_to: str
+    assigned_name: str = ""  # Display name of the assigned member
     name: str
     task: str
     priority: str

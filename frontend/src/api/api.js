@@ -204,6 +204,12 @@ export async function completeRoomTask(getToken, roomId, taskId) {
   return res.data;
 }
 
+export async function setMemberName(getToken, roomId, displayName) {
+  const token = await getToken();
+  const res = await api.put(`/api/rooms/${roomId}/set-name`, { display_name: displayName }, { headers: { Authorization: `Bearer ${token}` } });
+  return res.data;
+}
+
 // ─── Briefing endpoints ───
 
 export async function fetchBriefing(getToken) {

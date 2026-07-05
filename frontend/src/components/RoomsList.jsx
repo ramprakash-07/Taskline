@@ -4,15 +4,16 @@
  */
 
 import { useState, useEffect } from "react";
-import { useAuth } from "@clerk/clerk-react";
+import { useAuth, useUser } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
-import { fetchRooms, createRoom, deleteRoom } from "../api/api";
+import { fetchRooms, createRoom, deleteRoom, setMemberName } from "../api/api";
 
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export default function RoomsList() {
   const { getToken, userId } = useAuth();
+  const { user } = useUser();
   const navigate = useNavigate();
 
   const [rooms, setRooms] = useState([]);
@@ -41,6 +42,10 @@ export default function RoomsList() {
     setCreating(true);
     try {
       const newRoom = await createRoom(getToken, { room_name: roomName.trim() });
+      // Auto-set host's display name from Clerk profile
+      const hostName = user?.fullName || user?.firstName || "Host";
+      await setMemberName(getToken, newRoom.id, hostName);
+      newRoom.member_names = { ...(newRoom.member_names || {}), [userId]: hostName };
       setRooms((r) => [...r, newRoom]);
       setRoomName("");
       setShowCreate(false);
@@ -140,6 +145,11 @@ export default function RoomsList() {
               <div style={styles.memberCount}>
                 <span style={styles.memberDot} />
                 {(room.member_ids || []).length} member{(room.member_ids || []).length !== 1 ? "s" : ""}
+                {Object.keys(room.member_names || {}).length > 0 && (
+                  <span style={{ marginLeft: "6px", color: "#ffffff35" }}>
+                    — {Object.values(room.member_names || {}).join(", ")}
+                  </span>
+                )}
               </div>
 
               {/* Actions row */}

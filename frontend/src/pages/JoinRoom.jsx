@@ -1,43 +1,63 @@
 /**
  * JoinRoom — Invite landing page at /join/:roomId.
- * Auto-joins authenticated users; prompts sign-in for guests.
+ * Auto-joins authenticated users, then asks for display name.
+ * Prompts sign-in for unauthenticated users.
  */
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@clerk/clerk-react";
 import { useParams, useNavigate } from "react-router-dom";
-import { joinRoom } from "../api/api";
+import { joinRoom, setMemberName } from "../api/api";
 
 export default function JoinRoom() {
   const { roomId } = useParams();
   const { getToken, isSignedIn, isLoaded } = useAuth();
   const navigate = useNavigate();
 
-  const [status, setStatus] = useState("loading"); // loading | joining | success | error
+  const [status, setStatus] = useState("loading"); // loading | joining | name | success | error | signin
   const [error, setError] = useState(null);
+  const [displayName, setDisplayName] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!isLoaded) return;
 
     if (isSignedIn) {
-      // Auto-join the room
       setStatus("joining");
       (async () => {
         try {
           await joinRoom(getToken, roomId);
-          setStatus("success");
-          setTimeout(() => navigate(`/rooms/${roomId}`), 800);
+          setStatus("name"); // Ask for name after joining
         } catch (err) {
           setStatus("error");
           setError(err.response?.data?.detail || "Failed to join room");
         }
       })();
     } else {
-      // Store room ID for post-login redirect
       sessionStorage.setItem("taskline_join_room", roomId);
       setStatus("signin");
     }
   }, [isLoaded, isSignedIn, roomId, getToken, navigate]);
+
+  const handleSetName = async () => {
+    if (!displayName.trim()) return;
+    setSaving(true);
+    try {
+      await setMemberName(getToken, roomId, displayName.trim());
+      setStatus("success");
+      setTimeout(() => navigate(`/rooms/${roomId}`), 800);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to set name");
+      setStatus("error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSkip = () => {
+    setStatus("success");
+    setTimeout(() => navigate(`/rooms/${roomId}`), 500);
+  };
 
   return (
     <div style={styles.page}>
@@ -52,11 +72,46 @@ export default function JoinRoom() {
           </div>
         )}
 
+        {/* Name input step */}
+        {status === "name" && (
+          <div style={styles.centered}>
+            <div style={{ fontSize: "48px", lineHeight: 1, animation: "streakScaleUp 0.5s ease both" }}>🎉</div>
+            <div style={styles.nameTitle}>You're in!</div>
+            <div style={styles.nameSubtitle}>
+              What should your teammates call you?
+            </div>
+            <input
+              type="text"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Enter your name..."
+              autoFocus
+              onKeyDown={(e) => e.key === "Enter" && handleSetName()}
+              maxLength={50}
+              style={styles.nameInput}
+            />
+            <button
+              onClick={handleSetName}
+              disabled={saving || !displayName.trim()}
+              style={{
+                ...styles.joinBtn,
+                opacity: saving || !displayName.trim() ? 0.5 : 1,
+                cursor: saving || !displayName.trim() ? "not-allowed" : "pointer",
+              }}
+            >
+              {saving ? "Saving..." : "Continue →"}
+            </button>
+            <button onClick={handleSkip} style={styles.skipBtn}>
+              Skip for now
+            </button>
+          </div>
+        )}
+
         {/* Success state */}
         {status === "success" && (
           <div style={styles.centered}>
             <div style={styles.successIcon}>✓</div>
-            <div style={styles.successText}>You're in!</div>
+            <div style={styles.successText}>You're all set!</div>
             <div style={styles.redirectText}>Redirecting to room...</div>
           </div>
         )}
@@ -101,8 +156,7 @@ export default function JoinRoom() {
                   (async () => {
                     try {
                       await joinRoom(getToken, roomId);
-                      setStatus("success");
-                      setTimeout(() => navigate(`/rooms/${roomId}`), 800);
+                      setStatus("name");
                     } catch (err) {
                       setStatus("error");
                       setError(err.response?.data?.detail || "Failed to join room");
@@ -156,6 +210,57 @@ const styles = {
     fontFamily: "'DM Mono', monospace",
     letterSpacing: "2px",
     marginTop: "8px",
+  },
+  nameTitle: {
+    fontSize: "24px",
+    fontWeight: 800,
+    color: "#ffffff",
+    letterSpacing: "-0.3px",
+  },
+  nameSubtitle: {
+    fontSize: "14px",
+    color: "#ffffff60",
+    lineHeight: 1.6,
+    maxWidth: "300px",
+  },
+  nameInput: {
+    width: "100%",
+    background: "#ffffff08",
+    border: "1px solid #ffffff18",
+    borderRadius: "12px",
+    padding: "14px 18px",
+    color: "#fff",
+    fontSize: "16px",
+    fontFamily: "'DM Sans', sans-serif",
+    fontWeight: 600,
+    outline: "none",
+    textAlign: "center",
+    boxSizing: "border-box",
+    transition: "border 0.2s ease",
+    marginTop: "4px",
+  },
+  joinBtn: {
+    width: "100%",
+    background: "linear-gradient(135deg, #ff3b3b, #ff6b35)",
+    border: "none",
+    color: "#fff",
+    borderRadius: "12px",
+    padding: "14px 24px",
+    fontSize: "15px",
+    fontFamily: "'DM Sans', sans-serif",
+    fontWeight: 700,
+    boxShadow: "0 8px 32px #ff3b3b30",
+    transition: "all 0.2s ease",
+  },
+  skipBtn: {
+    background: "none",
+    border: "none",
+    color: "#ffffff35",
+    fontSize: "13px",
+    fontFamily: "'DM Mono', monospace",
+    cursor: "pointer",
+    padding: "4px",
+    transition: "color 0.2s ease",
   },
   successIcon: {
     width: "56px",
