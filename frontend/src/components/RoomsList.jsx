@@ -41,15 +41,23 @@ export default function RoomsList() {
     if (!roomName.trim()) return;
     setCreating(true);
     try {
+      console.log("[TaskLine] Creating room:", roomName.trim());
       const newRoom = await createRoom(getToken, { room_name: roomName.trim() });
-      // Auto-set host's display name from Clerk profile
+      console.log("[TaskLine] Room created:", newRoom.id);
+      // Auto-set host's display name from Clerk profile (non-blocking)
       const hostName = user?.fullName || user?.firstName || "Host";
-      await setMemberName(getToken, newRoom.id, hostName);
-      newRoom.member_names = { ...(newRoom.member_names || {}), [userId]: hostName };
+      try {
+        await setMemberName(getToken, newRoom.id, hostName);
+        newRoom.member_names = { ...(newRoom.member_names || {}), [userId]: hostName };
+        console.log("[TaskLine] Host name set:", hostName);
+      } catch (nameErr) {
+        console.warn("[TaskLine] Failed to set host name (non-critical):", nameErr);
+      }
       setRooms((r) => [...r, newRoom]);
       setRoomName("");
       setShowCreate(false);
     } catch (err) {
+      console.error("[TaskLine] Create room failed:", err.response?.data || err.message);
       setError(err.response?.data?.detail || "Failed to create room");
     } finally {
       setCreating(false);
